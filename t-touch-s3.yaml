@@ -1,0 +1,276 @@
+# Joel Krueger 8-6-2023
+# This code is for https://www.lilygo.cc/products/t-display-s3?variant=42490279166133
+#  the code below uses entities from my home assistent, modify or delete the lines that give you an error
+
+esphome:
+  name: t-touch-s3
+  friendly_name: t-touch-s3
+
+# load some custom code to work with the display
+# you should have copied this folder lilygo-tdisplays3-esphome/...   into your home assistant's config/esphome/
+external_components:
+  - source: lilygo-tdisplays3-esphome/components
+    components: [tdisplays3]
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+  logs:
+    component: ERROR
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "dyWNoWmMnUOaJ3GCznl0KDw4S5ImSCLz8ckxBNTLHCM="
+
+ota:
+  password: "b32503e6c3e2c3ed4fbf4f182fe6e06c"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  manual_ip:
+    static_ip: 192.168.4.53
+    gateway: 192.168.4.1
+    subnet: 255.255.255.0
+  fast_connect: true
+  power_save_mode: high
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "T-Touch-S3 Hotspot"
+
+captive_portal:
+    
+#web_server:
+#  port: 80
+
+time:
+  - platform: homeassistant
+    id: ha_time
+
+binary_sensor:
+  - platform: status
+    name: "Node Status"
+    id: system_status
+    
+  - platform: gpio
+    pin: 
+      number: GPIO0
+      inverted: True
+    name: b1
+
+  - platform: gpio
+    pin: 
+      number: GPIO14
+      inverted: True
+    name: b2
+
+output:
+  - platform: ledc
+    pin: GPIO38
+    id: gpio38
+    frequency: 2000
+
+light:
+  - platform: monochromatic
+    output: gpio38
+    name: "Backlight"
+    id: backlight
+    restore_mode: RESTORE_DEFAULT_ON
+
+# You can either setup the backlight as a switch like below or make it dimmable using a light output like above
+# switch:
+#   - platform: gpio
+#     pin: GPIO38
+#     name: "Backlight"
+#     id: backlight
+#     internal: true
+#     restore_mode: RESTORE_DEFAULT_ON
+
+# Example configuration entry
+sensor:
+  - platform: wifi_signal # Reports the WiFi signal strength/RSSI in dB
+    name: "WiFi Signal dB"
+    id: wifi_signal_db
+    update_interval: 300s
+    entity_category: "diagnostic"
+
+  - platform: copy # Reports the WiFi signal strength in %
+    source_id: wifi_signal_db
+    name: "WiFi Signal Percent"
+    id: wifi_percent
+    filters:
+      - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+    unit_of_measurement: "Signal %"
+    entity_category: "diagnostic"
+
+# a temperature sensor from my home assistant, delete or modify this section to work with your setup
+  - platform: homeassistant
+    id: temp
+    entity_id: sensor.feather1_temperature
+    #attribute: current_temperature
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto10
+    size: 10
+
+  - file: "gfonts://Roboto"
+    id: roboto20
+    size: 20
+
+  - file: "gfonts://Roboto"
+    id: roboto
+    size: 30
+
+  - file: "gfonts://Roboto"
+    id: roboto70
+    size: 70
+
+# copy the images to you home assistants config/esphome/images/ folder
+image:
+  - file: "images/sunny.png"
+    id: sunny
+    resize: 32x32
+    type: RGB24
+  - file: "images/cloudy.png"
+    id: cloudy
+    resize: 32x32
+    type: RGB24
+  - file: "images/partlycloudy.png"
+    id: partlycloudy
+    resize: 32x32
+    type: RGB24
+  - file: "images/rainy.png"
+    id: rainy
+    resize: 32x32
+    type: RGB24
+  - file: "images/pouring.png"
+    id: pouring
+    resize: 32x32
+    type: RGB24
+  - file: "images/lightning-rainy.png"
+    id: lightningrainy
+    resize: 32x32
+    type: RGB24
+  - file: "images/fog.png"
+    id: fog
+    resize: 64x64
+    type: RGB24
+  - file: "images/snow.png"
+    id: snow
+    resize: 32x32
+    type: RGB24
+  - file: "images/wifi00.png"
+    id: wifi00
+    resize: 32x32
+    type: RGB24
+  - file: "images/wifi33.png"
+    id: wifi33
+    resize: 32x32
+    type: RGB24
+  - file: "images/wifi66.png"
+    id: wifi66
+    resize: 32x32
+    type: RGB24
+  - file: "images/wifi100.png"
+    id: wifi100
+    resize: 32x32
+    type: RGB24
+
+text_sensor:
+  - platform: homeassistant
+    id: forecast
+    entity_id: weather.forecast_home
+
+display:
+  - platform: tdisplays3
+    id: disp
+    update_interval: 5s
+    rotation: 270
+    lambda: |-
+      it.rectangle(0,  0, it.get_width(), it.get_height(), Color(0,0,255));
+      it.line(0, 40, it.get_width(), 40, Color(0,0,255));   // header bar
+
+      it.printf(5, 3, id(roboto), Color(127,127,127), TextAlign::TOP_LEFT, "ESPHome");
+      it.printf((320 / 3) * 2 - 25, 10, id(roboto10), Color(63,127,191), TextAlign::CENTER, "Wifi Signal");
+      it.printf((320 / 3) * 2 - 15, 26, id(roboto20), Color(63,127,191), TextAlign::CENTER, "%.f%%", id(wifi_percent).state);
+      //it.strftime((320 / 2), (170 / 3) * 1 + 30, id(roboto70), Color(63,255,127), TextAlign::CENTER, "%H:%M:%S", id(ha_time).now()); //24hr w/ seconds
+      it.strftime((320 / 2), (170 / 3) * 1 + 30, id(roboto70), Color(63,255,127), TextAlign::CENTER, "%I:%M %p", id(ha_time).now());  //12hr w/ AM,PM
+      it.strftime(5, (170 / 3) * 2 + 15, id(roboto), Color(63,191,63), TextAlign::LEFT, "%m-%d-%Y", id(ha_time).now());
+      //it.printf((320 / 3) * 2, (170 / 3) * 2 + 25, id(roboto10), Color(255,127,127), TextAlign::CENTER, "Outside");
+      //it.printf((320 / 3) * 2, (170 / 3) * 2 + 38, id(roboto10), Color(255,127,127), TextAlign::CENTER, "Temperature");
+
+      if (id(wifi_percent).state > 66) {
+      it.image(170, (170 / 3) * 2 + 15, id(wifi100));
+      } else if (id(wifi_percent).state > 33) {
+      it.image(170, (170 / 3) * 2 + 15, id(wifi66));
+      } else if (id(wifi_percent).state > 0) {
+      it.image(170, (170 / 3) * 2 + 15, id(wifi33));
+      } else {
+      it.image(170, (170 / 3) * 2 + 15, id(wifi00));
+      }
+
+      if (id(forecast).state == "sunny") {
+      it.image(210, (170 / 3) * 2 + 15, id(sunny));
+      } else if (id(forecast).state == "cloudy") {
+      it.image(210, (170 / 3) * 2 + 15, id(cloudy));
+      } else if (id(forecast).state == "partlycloudy") {
+      it.image(210, (170 / 3) * 2 + 15, id(partlycloudy));
+      } else if (id(forecast).state == "rainy") {
+      it.image(210, (170 / 3) * 2 + 15, id(rainy));
+      } else if (id(forecast).state == "pouring") {
+      it.image(210, (170 / 3) * 2 + 15, id(pouring));
+      } else if (id(forecast).state == "lightning-rainy") {
+      it.image(210, (170 / 3) * 2 + 15, id(lightningrainy));
+      } else if (id(forecast).state == "lightning") {
+      it.image(210, (170 / 3) * 2 + 15, id(lightningrainy));
+      } else if (id(forecast).state == "fog") {
+      it.image(210, (170 / 3) * 2 + 15, id(fog));
+      } else if (id(forecast).state == "snow") {
+      it.image(210, (170 / 3) * 2 + 15, id(snow));
+      }
+
+      it.printf(315, (170 / 3) * 2 + 15, id(roboto), Color(191, 127, 127), TextAlign::RIGHT, "%.f F", id(temp).state);
+
+      // Comment out the above lines to see the image without text overlaid
+      // it.image(0, 0, id(my_image));
+
+      if (id(system_status).state) {
+        it.print(315, 3, id(roboto), Color(0,127,0), TextAlign::TOP_RIGHT, "Online");
+      }
+      else {
+        it.print(315, 3, id(roboto), Color(127,0,0), TextAlign::TOP_RIGHT, "Offline");
+      }
+
+i2c:
+  scl: 17
+  sda: 18
+
+# this is the very basic touchscreen code, it only toggles the backlight and sends logs to home assistant
+touchscreen:
+  - platform: tdisplays3
+    interrupt_pin: 16
+    address: 0x15
+    # The T-Display S3 has a round button below the screen.
+    # With the current rotation (270°), touching this button produces a
+    # negative coordinate (-40), which is cannot be used in ESPHome for a
+    # touch point.
+    # Adding an offset moves *all* points by that offset, allowing to use
+    # the button in this rotation as well.
+    # Rotation 180° would need an y offset instead; this is also supported.
+    x_offset: 40
+    id: my_touchscreen
+    on_touch:
+      - lambda: |-
+         ESP_LOGI("tdisplays3-touch", "x:%d, y:%d",
+           id(my_touchscreen).x,
+           id(my_touchscreen).y
+         );
+      - light.toggle: backlight
+    

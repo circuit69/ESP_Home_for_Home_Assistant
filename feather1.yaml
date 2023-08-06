@@ -1,0 +1,132 @@
+# Joel Krueger 8-6-2023
+# This code is for the https://www.adafruit.com/product/5477
+# This has temperature and humidity sensor sending data to Home Assistant
+#                      https://www.adafruit.com/product/5776
+
+esphome:
+  name: feather1
+  friendly_name: Feather1
+  includes:
+    - MAX17048_component.h # load this code to reading the battery monitor chip
+
+esp32:
+  board: adafruit_feather_esp32s3
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "8jxFQDlnusO0Wo2eXSPrFtaJDG/fGc4SE8Yb0esym3w="
+
+ota:
+  password: "7f44956744bc74518226a3aa9341b00c"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  manual_ip:
+    static_ip: 192.168.4.67
+    gateway: 192.168.4.1
+    subnet: 255.255.255.0
+  fast_connect: true
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Feather1 Hotspot"
+
+captive_portal:
+
+binary_sensor:
+  - platform: status
+    name: "Node Status"
+    id: system_status
+    
+  - platform: gpio
+    pin: 
+      number: GPIO0
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    name: D0
+
+switch:
+  - platform: gpio
+    pin: GPIO13
+    name: "Onboard LED"
+    id: led
+  
+  - platform: gpio
+    pin: GPIO21
+    name: "Neo Pixel Power"
+    id: neopixelpower
+
+  - platform: gpio
+    pin: GPIO7
+    name: "I2C Power"
+    id: i2cpower
+    restore_mode: RESTORE_DEFAULT_ON
+
+light:
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812
+    pin: 33
+    num_leds: 1
+    id: neopixel
+    method: esp32_rmt
+    name: "neopixel"
+    internal: false
+    restore_mode: RESTORE_DEFAULT_OFF
+
+i2c:
+  sda: 3
+  scl: 4
+  scan: true
+  id: bus_a
+
+sensor:
+  - platform: wifi_signal # Reports the WiFi signal strength/RSSI in dB
+    name: "WiFi Signal dB"
+    id: wifi_signal_db
+    update_interval: 1800s
+    entity_category: "diagnostic"
+
+  - platform: copy # Reports the WiFi signal strength in %
+    source_id: wifi_signal_db
+    name: "WiFi Signal Percent"
+    filters:
+      - lambda: return min(max(2 * (x + 100.0), 0.0), 100.0);
+    unit_of_measurement: "Signal %"
+    entity_category: "diagnostic"
+
+  - platform: sht4x
+    i2c_id: bus_a
+    temperature:
+      name: "Temperature"
+      id: Temperature
+      accuracy_decimals: 2
+      #filters:
+      #  - lambda: return x * (9.0/5.0) + 32.0;   //convert to fahrenheit
+    humidity:
+      name: "Humidity"
+      id: Humidity
+      accuracy_decimals: 2
+    address: 0x44
+    update_interval: 300s
+  
+  - platform: custom
+    lambda: |-
+      auto max17048_sensor = new MAX17048Sensor();
+      App.register_component(max17048_sensor);
+      return {max17048_sensor->voltage_sensor, max17048_sensor->percentage_sensor};
+    sensors:
+      - name: "Voltage"
+        unit_of_measurement: V
+        accuracy_decimals: 2
+      - name: "Percentage"
+        unit_of_measurement: '%'
